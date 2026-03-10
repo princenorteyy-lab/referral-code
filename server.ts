@@ -70,7 +70,7 @@ app.post("/api/register", async (req, res) => {
 
   try {
     if (usePostgres) {
-      const { rows: existingUsers } = await pgPool.query('SELECT code FROM users WHERE email = $1', [email]);
+      const { rows: existingUsers } = await pgPool.query('SELECT code FROM users WHERE email = $1 OR phone = $2', [email, phone]);
       if (existingUsers.length > 0) {
         return res.json({ code: existingUsers[0].code, message: "Welcome back! Here is your existing code." });
       }
@@ -89,7 +89,7 @@ app.post("/api/register", async (req, res) => {
       );
       return res.json({ code: availableCode, message: "Registration successful!" });
     } else {
-      const existingUser = sqliteDb.prepare("SELECT code FROM users WHERE email = ?").get(email) as { code: string } | undefined;
+      const existingUser = sqliteDb.prepare("SELECT code FROM users WHERE email = ? OR phone = ?").get(email, phone) as { code: string } | undefined;
       if (existingUser) {
         return res.json({ code: existingUser.code, message: "Welcome back! Here is your existing code." });
       }

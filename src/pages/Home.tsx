@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
-import { Gift, CheckCircle2, AlertCircle, Loader2, Lock, ArrowLeft } from 'lucide-react';
+import { Gift, CheckCircle2, AlertCircle, Loader2, Lock, ArrowLeft, Download, FileText, Image as ImageIcon } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 export default function App() {
   const navigate = useNavigate();
+  const cardRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -46,18 +49,45 @@ export default function App() {
     }
   };
 
+  const handleDownloadPNG = async () => {
+    if (!cardRef.current) return;
+    try {
+      const canvas = await html2canvas(cardRef.current, {
+        backgroundColor: '#171717', // neutral-900
+        scale: 2,
+      });
+      const dataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = `referral-code-${result?.code}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (error) {
+      console.error('Failed to generate PNG', error);
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!cardRef.current) return;
+    try {
+      const canvas = await html2canvas(cardRef.current, {
+        backgroundColor: '#171717',
+        scale: 2,
+      });
+      const imgData = canvas.toDataURL('image/png');
+      
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`referral-code-${result?.code}.pdf`);
+    } catch (error) {
+      console.error('Failed to generate PDF', error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-50 flex flex-col items-center justify-center p-4 sm:p-8 font-sans relative">
-      <div className="absolute top-4 left-4 sm:top-8 sm:left-8">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-sm font-medium text-neutral-400 hover:text-neutral-200 transition-colors bg-neutral-900 border border-neutral-800 rounded-full px-4 py-2 hover:bg-neutral-800"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back
-        </button>
-      </div>
-
       <div className="absolute top-4 right-4 sm:top-8 sm:right-8">
         <Link
           to="/admin"
@@ -188,19 +218,55 @@ export default function App() {
               animate={{ opacity: 1, scale: 1 }}
               className="flex flex-col items-center text-center space-y-6 py-4"
             >
-              <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center">
-                <CheckCircle2 className="w-8 h-8" />
-              </div>
-              
-              <div className="space-y-2">
-                <h2 className="text-xl font-medium">{result.message}</h2>
-                <p className="text-neutral-400 text-sm">Your exclusive referral code is:</p>
+              <div ref={cardRef} className="flex flex-col items-center text-center space-y-6 w-full p-8 bg-neutral-900 rounded-2xl relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1.5 bg-emerald-500"></div>
+                
+                <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mt-2">
+                  <CheckCircle2 className="w-8 h-8" />
+                </div>
+                
+                <div className="space-y-1">
+                  <h2 className="text-2xl font-bold text-white tracking-wide">
+                    {formData.firstName} {formData.lastName}
+                  </h2>
+                  <p className="text-emerald-400 text-sm font-medium uppercase tracking-wider">Beyond The Hustle Ambassador</p>
+                </div>
+
+                <div className="w-full h-px bg-neutral-800 my-2"></div>
+
+                <div className="space-y-2">
+                  <p className="text-neutral-400 text-sm">{result.message}</p>
+                  <p className="text-neutral-500 text-xs uppercase tracking-widest">Your exclusive code</p>
+                </div>
+
+                <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 w-full shadow-inner">
+                  <div className="font-mono text-5xl font-bold text-emerald-400 tracking-widest">
+                    {result.code}
+                  </div>
+                </div>
               </div>
 
-              <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 w-full">
-                <div className="font-mono text-4xl font-bold text-emerald-400 tracking-wider">
-                  {result.code}
-                </div>
+              <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4 w-full">
+                <p className="text-indigo-400 text-sm font-medium">
+                  📸 Please take a screenshot of this screen or download it to save your code!
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 w-full">
+                <button
+                  onClick={handleDownloadPNG}
+                  className="bg-neutral-800 hover:bg-neutral-700 text-neutral-200 px-4 py-3 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <ImageIcon className="w-4 h-4" />
+                  Save as PNG
+                </button>
+                <button
+                  onClick={handleDownloadPDF}
+                  className="bg-neutral-800 hover:bg-neutral-700 text-neutral-200 px-4 py-3 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <FileText className="w-4 h-4" />
+                  Save as PDF
+                </button>
               </div>
 
               <button
@@ -208,7 +274,7 @@ export default function App() {
                   setResult(null);
                   setFormData({ firstName: '', lastName: '', email: '', phone: '' });
                 }}
-                className="text-sm text-neutral-400 hover:text-neutral-200 transition-colors"
+                className="text-sm text-neutral-400 hover:text-neutral-200 transition-colors mt-4"
               >
                 Register another person
               </button>
