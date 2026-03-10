@@ -96,6 +96,32 @@ export default function Admin() {
     XLSX.writeFile(workbook, 'referrals_data.xlsx');
   };
 
+  const handleReset = async () => {
+    if (!window.confirm("Are you sure you want to delete ALL registered users? This cannot be undone.")) {
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const response = await fetch('/api/admin/reset', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        setUsers([]);
+        alert("All data has been reset.");
+      } else {
+        alert("Failed to reset data.");
+      }
+    } catch (err) {
+      console.error('Failed to reset data', err);
+      alert("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!token) {
     return (
       <div className="min-h-screen bg-neutral-950 text-neutral-50 flex flex-col items-center justify-center p-4 font-sans relative">
@@ -184,6 +210,14 @@ export default function Admin() {
           </div>
           
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleReset}
+              disabled={loading || users.length === 0}
+              className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <AlertCircle className="w-4 h-4" />
+              Reset Data
+            </button>
             <button
               onClick={exportToExcel}
               disabled={users.length === 0}

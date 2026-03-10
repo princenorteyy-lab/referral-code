@@ -150,7 +150,7 @@ const authenticate = (req: express.Request, res: express.Response, next: express
 app.get("/api/admin/users", authenticate, async (req, res) => {
   try {
     if (usePostgres) {
-      const { rows: users } = await pgPool.query('SELECT * FROM users ORDER BY id DESC');
+      const { rows: users } = await pgPool.query('SELECT id, firstname AS "firstName", lastname AS "lastName", email, phone, code FROM users ORDER BY id DESC');
       res.json(users);
     } else {
       const users = sqliteDb.prepare("SELECT * FROM users ORDER BY id DESC").all();
@@ -159,6 +159,23 @@ app.get("/api/admin/users", authenticate, async (req, res) => {
   } catch (error) {
     console.error("Database error:", error);
     res.status(500).json({ error: "Failed to fetch users" });
+  }
+});
+
+// Protected Admin Route to reset data
+app.post("/api/admin/reset", authenticate, async (req, res) => {
+  try {
+    if (usePostgres) {
+      await pgPool.query('TRUNCATE TABLE users RESTART IDENTITY');
+    } else {
+      sqliteDb.prepare("DELETE FROM users").run();
+      // Reset sqlite autoincrement
+      sqliteDb.prepare("DELETE FROM sqlite_sequence WHERE name='users'").run();
+    }
+    res.json({ message: "Data reset successfully" });
+  } catch (error) {
+    console.error("Database error:", error);
+    res.status(500).json({ error: "Failed to reset data" });
   }
 });
 
