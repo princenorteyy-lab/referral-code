@@ -1,6 +1,7 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import Database from "better-sqlite3";
+import { sql } from "@vercel/postgres";
 import path from "path";
 import { fileURLToPath } from "url";
 import jwt from "jsonwebtoken";
@@ -16,25 +17,44 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
 
 app.use(express.json());
 
-// Initialize SQLite Database
-const db = new Database("referrals.db");
+const usePostgres = !!process.env.POSTGRES_URL;
+let db: any;
 
-// Create table if it doesn't exist
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    firstName TEXT NOT NULL,
-    lastName TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    phone TEXT NOT NULL,
-    code TEXT UNIQUE NOT NULL
-  )
-`);
+if (!usePostgres) {
+  db = new Database("referrals.db");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      firstName TEXT NOT NULL,
+      lastName TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      phone TEXT NOT NULL,
+      code TEXT UNIQUE NOT NULL
+    )
+  `);
+} else {
+  (async () => {
+    try {
+      await sql`
+        CREATE TABLE IF NOT EXISTS users (
+          id SERIAL PRIMARY KEY,
+          firstName VARCHAR(255) NOT NULL,
+          lastName VARCHAR(255) NOT NULL,
+          email VARCHAR(255) UNIQUE NOT NULL,
+          phone VARCHAR(255) NOT NULL,
+          code VARCHAR(255) UNIQUE NOT NULL
+        )
+      `;
+    } catch (e) {
+      console.error("Postgres init error:", e);
+    }
+  })();
+}
 
 // Generate available codes KSB00 to KSB25
 const ALL_CODES = Array.from({ length: 26 }, (_, i) => `KSB${i.toString().padStart(2, '0')}`);
 
-app.post("/api/register", (req, res) => {
+app.post("/api/register", async (req, res) => {
   const { firstName, lastName, email, phone } = req.body;
 
   if (!firstName || !lastName || !email || !phone) {
@@ -42,30 +62,48 @@ app.post("/api/register", (req, res) => {
   }
 
   try {
-    // Check if user already exists
-    const existingUser = db.prepare("SELECT code FROM users WHERE email = ?").get(email) as { code: string } | undefined;
-    if (existingUser) {
-      return res.json({ code: existingUser.code, message: "Welcome back! Here is your existing code." });
+    if (usePostgres) {
+      const { rows: existingUsers } = await sql`SELECT code FROM users WHERE email = ${email}`;
+      if (existingUsers.length > 0) {
+        return res.json({ code: existingUsers[0].code, message: "Welcome back! Here is your existing code." });
+      }
+
+      const { rows: assignedCodes } = await sql`SELECT code FROM users`;
+      const assignedCodeSet = new Set(assignedCodes.map(c => c.code));
+      const availableCode = ALL_CODES.find(code => !assignedCodeSet.has(code));
+
+      if (!availableCode) {
+        return res.status(400).json({ error: "Sorry, all referral codes have been claimed." });
+      }
+
+      await sql`
+        INSERT INTO users (firstName, lastName, email, phone, code) 
+        VALUES (${firstName}, ${lastName}, ${email}, ${phone}, ${availableCode})
+      `;
+      return res.json({ code: availableCode, message: "Registration successful!" });
+    } else {
+      const existingUser = db.prepare("SELECT code FROM users WHERE email = ?").get(email) as { code: string } | undefined;
+      if (existingUser) {
+        return res.json({ code: existingUser.code, message: "Welcome back! Here is your existing code." });
+      }
+
+      const assignedCodes = db.prepare("SELECT code FROM users").all() as { code: string }[];
+      const assignedCodeSet = new Set(assignedCodes.map(c => c.code));
+      const availableCode = ALL_CODES.find(code => !assignedCodeSet.has(code));
+
+      if (!availableCode) {
+        return res.status(400).json({ error: "Sorry, all referral codes have been claimed." });
+      }
+
+      const stmt = db.prepare("INSERT INTO users (firstName, lastName, email, phone, code) VALUES (?, ?, ?, ?, ?)");
+      stmt.run(firstName, lastName, email, phone, availableCode);
+
+      return res.json({ code: availableCode, message: "Registration successful!" });
     }
-
-    // Get assigned codes
-    const assignedCodes = db.prepare("SELECT code FROM users").all() as { code: string }[];
-    const assignedCodeSet = new Set(assignedCodes.map(c => c.code));
-
-    // Find first available code
-    const availableCode = ALL_CODES.find(code => !assignedCodeSet.has(code));
-
-    if (!availableCode) {
-      return res.status(400).json({ error: "Sorry, all referral codes have been claimed." });
-    }
-
-    // Insert new user
-    const stmt = db.prepare("INSERT INTO users (firstName, lastName, email, phone, code) VALUES (?, ?, ?, ?, ?)");
-    stmt.run(firstName, lastName, email, phone, availableCode);
-
-    res.json({ code: availableCode, message: "Registration successful!" });
   } catch (error: any) {
-    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+    if (usePostgres && error.message && error.message.includes('unique constraint')) {
+       return res.status(400).json({ error: "This email is already registered." });
+    } else if (!usePostgres && error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
        return res.status(400).json({ error: "This email is already registered." });
     }
     console.error("Database error:", error);
@@ -102,10 +140,15 @@ const authenticate = (req: express.Request, res: express.Response, next: express
 };
 
 // Protected Admin Route to get all users
-app.get("/api/admin/users", authenticate, (req, res) => {
+app.get("/api/admin/users", authenticate, async (req, res) => {
   try {
-    const users = db.prepare("SELECT * FROM users ORDER BY id DESC").all();
-    res.json(users);
+    if (usePostgres) {
+      const { rows: users } = await sql`SELECT * FROM users ORDER BY id DESC`;
+      res.json(users);
+    } else {
+      const users = db.prepare("SELECT * FROM users ORDER BY id DESC").all();
+      res.json(users);
+    }
   } catch (error) {
     console.error("Database error:", error);
     res.status(500).json({ error: "Failed to fetch users" });
@@ -128,9 +171,15 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  // Only listen if we are not running on Vercel
+  if (!process.env.VERCEL) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }
 }
 
 startServer();
+
+// Export the app for Vercel serverless functions
+export default app;

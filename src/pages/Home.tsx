@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Gift, CheckCircle2, AlertCircle, Loader2, Lock } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Gift, CheckCircle2, AlertCircle, Loader2, Lock, ArrowLeft } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 
 export default function App() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -47,6 +48,16 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-50 flex flex-col items-center justify-center p-4 sm:p-8 font-sans relative">
+      <div className="absolute top-4 left-4 sm:top-8 sm:left-8">
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-sm font-medium text-neutral-400 hover:text-neutral-200 transition-colors bg-neutral-900 border border-neutral-800 rounded-full px-4 py-2 hover:bg-neutral-800"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back
+        </button>
+      </div>
+
       <div className="absolute top-4 right-4 sm:top-8 sm:right-8">
         <Link
           to="/admin"
