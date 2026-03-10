@@ -1,14 +1,9 @@
 import express from "express";
-import { createServer as createViteServer } from "vite";
-import Database from "better-sqlite3";
 import pg from "pg";
 import path from "path";
-import { fileURLToPath } from "url";
 import jwt from "jsonwebtoken";
 
 const { Pool } = pg;
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 3000;
@@ -25,17 +20,20 @@ let sqliteDb: any;
 let pgPool: any;
 
 if (!usePostgres) {
-  sqliteDb = new Database("referrals.db");
-  sqliteDb.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      firstName TEXT NOT NULL,
-      lastName TEXT NOT NULL,
-      email TEXT UNIQUE NOT NULL,
-      phone TEXT NOT NULL,
-      code TEXT UNIQUE NOT NULL
-    )
-  `);
+  // Use dynamic import for better-sqlite3 so it doesn't crash Vercel if the binary is missing
+  import("better-sqlite3").then(({ default: Database }) => {
+    sqliteDb = new Database("referrals.db");
+    sqliteDb.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        firstName TEXT NOT NULL,
+        lastName TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        phone TEXT NOT NULL,
+        code TEXT UNIQUE NOT NULL
+      )
+    `);
+  }).catch(e => console.error("SQLite init error:", e));
 } else {
   pgPool = new Pool({
     connectionString: postgresUrl,
@@ -167,16 +165,17 @@ app.get("/api/admin/users", authenticate, async (req, res) => {
 async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.join(__dirname, "dist")));
+    app.use(express.static(path.join(process.cwd(), "dist")));
     // SPA fallback for production
     app.get('*', (req, res) => {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+      res.sendFile(path.join(process.cwd(), 'dist', 'index.html'));
     });
   }
 
