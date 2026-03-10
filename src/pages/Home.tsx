@@ -5,20 +5,18 @@ import { Link, useNavigate } from 'react-router-dom';
 import * as htmlToImage from 'html-to-image';
 import { jsPDF } from 'jspdf';
 
-export default function App() {
+export default function Home() {
   const navigate = useNavigate();
   const cardRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
-    firstName: 'Jane',
-    lastName: 'Doe',
-    email: 'jane@example.com',
-    phone: '241234567',
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
   });
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ code?: string; message?: string; error?: string } | null>({
-    code: 'KSB00',
-    message: 'Registration successful!'
-  });
+  const [result, setResult] = useState<{ code?: string; message?: string; error?: string } | null>(null);
+  const [downloadMessage, setDownloadMessage] = useState('');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -63,6 +61,8 @@ export default function App() {
       link.download = `referral-code-${result?.code}.png`;
       link.href = dataUrl;
       link.click();
+      setDownloadMessage('File downloaded successfully!');
+      setTimeout(() => setDownloadMessage(''), 3000);
     } catch (error) {
       console.error('Failed to generate PNG', error);
     }
@@ -88,6 +88,8 @@ export default function App() {
       
       pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`referral-code-${result?.code}.pdf`);
+      setDownloadMessage('File downloaded successfully!');
+      setTimeout(() => setDownloadMessage(''), 3000);
     } catch (error) {
       console.error('Failed to generate PDF', error);
     }
@@ -113,17 +115,8 @@ export default function App() {
       >
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8 shadow-xl">
           <div className="flex flex-col items-center mb-8">
-            <div className="w-full max-w-[200px] mb-6 bg-white rounded-xl p-3 shadow-sm flex items-center justify-center min-h-[60px]">
-              <img 
-                src="/logo.png" 
-                alt="Beyond The Hustle Logo" 
-                className="w-full h-auto object-contain"
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                  e.currentTarget.parentElement!.innerHTML = '<span class="text-neutral-900 font-bold text-lg tracking-wider text-center">BEYOND THE HUSTLE</span>';
-                }}
-              />
+            <div className="w-12 h-12 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mb-4">
+              <Gift className="w-6 h-6" />
             </div>
             <h1 className="text-2xl font-semibold tracking-tight text-center">Get Your Referral Code</h1>
             <p className="text-neutral-400 text-sm mt-2 text-center">
@@ -237,20 +230,11 @@ export default function App() {
               <div ref={cardRef} className="flex flex-col items-center text-center space-y-6 w-full p-8 bg-neutral-900 rounded-2xl relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-1.5 bg-emerald-500"></div>
                 
-                <div className="mt-2 w-full max-w-[240px] bg-white rounded-xl p-4 shadow-sm flex items-center justify-center min-h-[80px]">
-                  <img 
-                    src="/logo.png" 
-                    alt="Beyond The Hustle Logo" 
-                    className="w-full h-auto object-contain"
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                      e.currentTarget.parentElement!.innerHTML = '<span class="text-neutral-900 font-bold text-xl tracking-wider">BEYOND THE HUSTLE</span>';
-                    }}
-                  />
+                <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mt-2">
+                  <CheckCircle2 className="w-8 h-8" />
                 </div>
                 
-                <div className="space-y-1 mt-4">
+                <div className="space-y-1">
                   <h2 className="text-2xl font-bold text-white tracking-wide">
                     {formData.firstName} {formData.lastName}
                   </h2>
@@ -277,6 +261,16 @@ export default function App() {
                 </p>
               </div>
 
+              {downloadMessage && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl p-3 w-full text-center text-sm font-medium"
+                >
+                  {downloadMessage}
+                </motion.div>
+              )}
+
               <div className="grid grid-cols-2 gap-3 w-full">
                 <button
                   onClick={handleDownloadPNG}
@@ -298,6 +292,7 @@ export default function App() {
                 onClick={() => {
                   setResult(null);
                   setFormData({ firstName: '', lastName: '', email: '', phone: '' });
+                  setDownloadMessage('');
                 }}
                 className="text-sm text-neutral-400 hover:text-neutral-200 transition-colors mt-4"
               >
