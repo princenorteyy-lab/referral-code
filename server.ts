@@ -1,11 +1,12 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import Database from "better-sqlite3";
-import { sql } from "@vercel/postgres";
+import pg from "pg";
 import path from "path";
 import { fileURLToPath } from "url";
 import jwt from "jsonwebtoken";
 
+const { Pool } = pg;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -17,12 +18,15 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
 
 app.use(express.json());
 
-const usePostgres = !!process.env.POSTGRES_URL;
-let db: any;
+const postgresUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.STORAGE_URL;
+const usePostgres = !!postgresUrl;
+
+let sqliteDb: any;
+let pgPool: any;
 
 if (!usePostgres) {
-  db = new Database("referrals.db");
-  db.exec(`
+  sqliteDb = new Database("referrals.db");
+  sqliteDb.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       firstName TEXT NOT NULL,
@@ -33,9 +37,14 @@ if (!usePostgres) {
     )
   `);
 } else {
+  pgPool = new Pool({
+    connectionString: postgresUrl,
+    ssl: { rejectUnauthorized: false }
+  });
+  
   (async () => {
     try {
-      await sql`
+      await pgPool.query(`
         CREATE TABLE IF NOT EXISTS users (
           id SERIAL PRIMARY KEY,
           firstName VARCHAR(255) NOT NULL,
@@ -44,7 +53,7 @@ if (!usePostgres) {
           phone VARCHAR(255) NOT NULL,
           code VARCHAR(255) UNIQUE NOT NULL
         )
-      `;
+      `);
     } catch (e) {
       console.error("Postgres init error:", e);
     }
@@ -63,31 +72,31 @@ app.post("/api/register", async (req, res) => {
 
   try {
     if (usePostgres) {
-      const { rows: existingUsers } = await sql`SELECT code FROM users WHERE email = ${email}`;
+      const { rows: existingUsers } = await pgPool.query('SELECT code FROM users WHERE email = $1', [email]);
       if (existingUsers.length > 0) {
         return res.json({ code: existingUsers[0].code, message: "Welcome back! Here is your existing code." });
       }
 
-      const { rows: assignedCodes } = await sql`SELECT code FROM users`;
-      const assignedCodeSet = new Set(assignedCodes.map(c => c.code));
+      const { rows: assignedCodes } = await pgPool.query('SELECT code FROM users');
+      const assignedCodeSet = new Set(assignedCodes.map((c: any) => c.code));
       const availableCode = ALL_CODES.find(code => !assignedCodeSet.has(code));
 
       if (!availableCode) {
         return res.status(400).json({ error: "Sorry, all referral codes have been claimed." });
       }
 
-      await sql`
-        INSERT INTO users (firstName, lastName, email, phone, code) 
-        VALUES (${firstName}, ${lastName}, ${email}, ${phone}, ${availableCode})
-      `;
+      await pgPool.query(
+        'INSERT INTO users (firstName, lastName, email, phone, code) VALUES ($1, $2, $3, $4, $5)',
+        [firstName, lastName, email, phone, availableCode]
+      );
       return res.json({ code: availableCode, message: "Registration successful!" });
     } else {
-      const existingUser = db.prepare("SELECT code FROM users WHERE email = ?").get(email) as { code: string } | undefined;
+      const existingUser = sqliteDb.prepare("SELECT code FROM users WHERE email = ?").get(email) as { code: string } | undefined;
       if (existingUser) {
         return res.json({ code: existingUser.code, message: "Welcome back! Here is your existing code." });
       }
 
-      const assignedCodes = db.prepare("SELECT code FROM users").all() as { code: string }[];
+      const assignedCodes = sqliteDb.prepare("SELECT code FROM users").all() as { code: string }[];
       const assignedCodeSet = new Set(assignedCodes.map(c => c.code));
       const availableCode = ALL_CODES.find(code => !assignedCodeSet.has(code));
 
@@ -95,13 +104,13 @@ app.post("/api/register", async (req, res) => {
         return res.status(400).json({ error: "Sorry, all referral codes have been claimed." });
       }
 
-      const stmt = db.prepare("INSERT INTO users (firstName, lastName, email, phone, code) VALUES (?, ?, ?, ?, ?)");
+      const stmt = sqliteDb.prepare("INSERT INTO users (firstName, lastName, email, phone, code) VALUES (?, ?, ?, ?, ?)");
       stmt.run(firstName, lastName, email, phone, availableCode);
 
       return res.json({ code: availableCode, message: "Registration successful!" });
     }
   } catch (error: any) {
-    if (usePostgres && error.message && error.message.includes('unique constraint')) {
+    if (usePostgres && error.code === '23505') { // Postgres unique violation
        return res.status(400).json({ error: "This email is already registered." });
     } else if (!usePostgres && error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
        return res.status(400).json({ error: "This email is already registered." });
@@ -143,10 +152,10 @@ const authenticate = (req: express.Request, res: express.Response, next: express
 app.get("/api/admin/users", authenticate, async (req, res) => {
   try {
     if (usePostgres) {
-      const { rows: users } = await sql`SELECT * FROM users ORDER BY id DESC`;
+      const { rows: users } = await pgPool.query('SELECT * FROM users ORDER BY id DESC');
       res.json(users);
     } else {
-      const users = db.prepare("SELECT * FROM users ORDER BY id DESC").all();
+      const users = sqliteDb.prepare("SELECT * FROM users ORDER BY id DESC").all();
       res.json(users);
     }
   } catch (error) {
