@@ -2,20 +2,23 @@ import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
 import { Gift, CheckCircle2, AlertCircle, Loader2, Lock, ArrowLeft, Download, FileText, Image as ImageIcon } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import html2canvas from 'html2canvas';
+import * as htmlToImage from 'html-to-image';
 import { jsPDF } from 'jspdf';
 
 export default function App() {
   const navigate = useNavigate();
   const cardRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
+    firstName: 'Jane',
+    lastName: 'Doe',
+    email: 'jane@example.com',
+    phone: '241234567',
   });
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ code?: string; message?: string; error?: string } | null>(null);
+  const [result, setResult] = useState<{ code?: string; message?: string; error?: string } | null>({
+    code: 'KSB00',
+    message: 'Registration successful!'
+  });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -52,11 +55,10 @@ export default function App() {
   const handleDownloadPNG = async () => {
     if (!cardRef.current) return;
     try {
-      const canvas = await html2canvas(cardRef.current, {
+      const dataUrl = await htmlToImage.toPng(cardRef.current, {
         backgroundColor: '#171717', // neutral-900
-        scale: 2,
+        pixelRatio: 2,
       });
-      const dataUrl = canvas.toDataURL('image/png');
       const link = document.createElement('a');
       link.download = `referral-code-${result?.code}.png`;
       link.href = dataUrl;
@@ -69,17 +71,22 @@ export default function App() {
   const handleDownloadPDF = async () => {
     if (!cardRef.current) return;
     try {
-      const canvas = await html2canvas(cardRef.current, {
+      const dataUrl = await htmlToImage.toPng(cardRef.current, {
         backgroundColor: '#171717',
-        scale: 2,
+        pixelRatio: 2,
       });
-      const imgData = canvas.toDataURL('image/png');
       
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise((resolve) => {
+        img.onload = resolve;
+      });
+
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      const pdfHeight = (img.height * pdfWidth) / img.width;
       
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`referral-code-${result?.code}.pdf`);
     } catch (error) {
       console.error('Failed to generate PDF', error);
@@ -106,8 +113,17 @@ export default function App() {
       >
         <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8 shadow-xl">
           <div className="flex flex-col items-center mb-8">
-            <div className="w-12 h-12 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mb-4">
-              <Gift className="w-6 h-6" />
+            <div className="w-full max-w-[200px] mb-6 bg-white rounded-xl p-3 shadow-sm flex items-center justify-center min-h-[60px]">
+              <img 
+                src="/logo.png" 
+                alt="Beyond The Hustle Logo" 
+                className="w-full h-auto object-contain"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.parentElement!.innerHTML = '<span class="text-neutral-900 font-bold text-lg tracking-wider text-center">BEYOND THE HUSTLE</span>';
+                }}
+              />
             </div>
             <h1 className="text-2xl font-semibold tracking-tight text-center">Get Your Referral Code</h1>
             <p className="text-neutral-400 text-sm mt-2 text-center">
@@ -221,11 +237,20 @@ export default function App() {
               <div ref={cardRef} className="flex flex-col items-center text-center space-y-6 w-full p-8 bg-neutral-900 rounded-2xl relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-1.5 bg-emerald-500"></div>
                 
-                <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mt-2">
-                  <CheckCircle2 className="w-8 h-8" />
+                <div className="mt-2 w-full max-w-[240px] bg-white rounded-xl p-4 shadow-sm flex items-center justify-center min-h-[80px]">
+                  <img 
+                    src="/logo.png" 
+                    alt="Beyond The Hustle Logo" 
+                    className="w-full h-auto object-contain"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.parentElement!.innerHTML = '<span class="text-neutral-900 font-bold text-xl tracking-wider">BEYOND THE HUSTLE</span>';
+                    }}
+                  />
                 </div>
                 
-                <div className="space-y-1">
+                <div className="space-y-1 mt-4">
                   <h2 className="text-2xl font-bold text-white tracking-wide">
                     {formData.firstName} {formData.lastName}
                   </h2>
