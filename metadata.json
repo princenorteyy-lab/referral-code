@@ -1,0 +1,5 @@
+{
+  "name": "Referral Code Generator",
+  "description": "A website to collect user details and assign a special referral code.",
+  "requestFramePermissions": []
+}
