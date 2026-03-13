@@ -44,13 +44,18 @@ export default function Home() {
     setLoading(true);
     setResult(null);
 
+    const payload = { ...formData };
+    if (payload.hasGcbAccount === 'No') {
+      payload.gcbAccountNumber = '';
+    }
+
     try {
       const response = await fetch('/api/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
@@ -118,10 +123,10 @@ export default function Home() {
       <div className="absolute top-4 right-4 sm:top-8 sm:right-8">
         <Link
           to="/admin"
-          className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors bg-white border border-gray-200 rounded-full px-4 py-2 hover:bg-gray-200"
+          className="flex items-center justify-center text-gray-500 hover:text-gray-700 transition-colors bg-white border border-gray-200 rounded-full w-10 h-10 hover:bg-gray-200 shadow-sm"
+          title="Admin Login"
         >
           <Lock className="w-4 h-4" />
-          Admin Login
         </Link>
       </div>
 
@@ -131,16 +136,17 @@ export default function Home() {
         transition={{ duration: 0.5 }}
         className="w-full max-w-md"
       >
-        <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-xl">
-          <div className="flex flex-col items-center mb-8">
-            <h1 className="text-2xl font-semibold tracking-tight text-center">GET YOUR FREE BEYOND THE HUSTLE E-BOOK</h1>
-            <p className="text-gray-500 text-sm mt-2 text-center">
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden">
+          <div className="bg-[#FF7F50] p-8 flex flex-col items-center text-white">
+            <h1 className="text-2xl font-bold tracking-tight text-center">GET YOUR FREE BEYOND THE HUSTLE E-BOOK</h1>
+            <p className="text-white/90 text-sm mt-2 text-center">
               GCB is sponsoring 1,000 students to get the Beyond The Hustle Book FREE. Download the app now get your your access
             </p>
           </div>
 
-          {!result?.link ? (
-            <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="p-8">
+            {!result?.link ? (
+              <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <label htmlFor="fullName" className="text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Full Name
@@ -394,6 +400,7 @@ export default function Home() {
               </button>
             </motion.div>
           )}
+          </div>
         </div>
       </motion.div>
     </div>

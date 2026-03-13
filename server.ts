@@ -33,11 +33,21 @@ if (!usePostgres) {
         institution TEXT NOT NULL,
         courseOfStudy TEXT NOT NULL,
         yearOfStudy TEXT NOT NULL,
-        hasGcbAccount TEXT NOT NULL,
+        hasGcbAccount TEXT NOT NULL DEFAULT 'No',
         gcbAccountNumber TEXT,
-        osChoice TEXT NOT NULL
+        osChoice TEXT NOT NULL DEFAULT 'Android'
       )
     `);
+
+    try {
+      sqliteDb.exec(`ALTER TABLE users ADD COLUMN hasGcbAccount TEXT NOT NULL DEFAULT 'No'`);
+    } catch (e) {}
+    try {
+      sqliteDb.exec(`ALTER TABLE users ADD COLUMN gcbAccountNumber TEXT`);
+    } catch (e) {}
+    try {
+      sqliteDb.exec(`ALTER TABLE users ADD COLUMN osChoice TEXT NOT NULL DEFAULT 'Android'`);
+    } catch (e) {}
   }).catch(e => console.error("SQLite init error:", e));
 } else {
   pgPool = new Pool({
@@ -57,11 +67,20 @@ if (!usePostgres) {
           institution VARCHAR(255) NOT NULL,
           courseOfStudy VARCHAR(255) NOT NULL,
           yearOfStudy VARCHAR(50) NOT NULL,
-          hasGcbAccount VARCHAR(10) NOT NULL,
+          hasGcbAccount VARCHAR(10) NOT NULL DEFAULT 'No',
           gcbAccountNumber VARCHAR(255),
-          osChoice VARCHAR(50) NOT NULL
+          osChoice VARCHAR(50) NOT NULL DEFAULT 'Android'
         )
       `);
+
+      // Add columns if they don't exist (for existing databases)
+      try {
+        await pgPool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS hasGcbAccount VARCHAR(10) NOT NULL DEFAULT 'No'`);
+        await pgPool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS gcbAccountNumber VARCHAR(255)`);
+        await pgPool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS osChoice VARCHAR(50) NOT NULL DEFAULT 'Android'`);
+      } catch (alterError) {
+        console.error("Postgres alter table error (might be expected if columns exist):", alterError);
+      }
     } catch (e) {
       console.error("Postgres init error:", e);
     }
