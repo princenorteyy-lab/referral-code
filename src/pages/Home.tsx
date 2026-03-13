@@ -9,16 +9,33 @@ export default function Home() {
   const navigate = useNavigate();
   const cardRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
+    fullName: '',
     email: '',
     phone: '',
+    gender: '',
+    institution: '',
+    courseOfStudy: '',
+    yearOfStudy: '',
+    hasGcbAccount: '',
+    gcbAccountNumber: '',
+    osChoice: '',
   });
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ code?: string; message?: string; error?: string } | null>(null);
+  const [result, setResult] = useState<{ link?: string; osChoice?: string; message?: string; error?: string } | null>(null);
   const [downloadMessage, setDownloadMessage] = useState('');
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const isFormValid = formData.fullName.trim() !== '' && 
+    formData.email.trim() !== '' && 
+    formData.phone.trim() !== '' && 
+    formData.gender !== '' && 
+    formData.institution.trim() !== '' && 
+    formData.courseOfStudy.trim() !== '' && 
+    formData.yearOfStudy !== '' && 
+    formData.hasGcbAccount !== '' && 
+    (formData.hasGcbAccount === 'No' || formData.gcbAccountNumber.trim() !== '') && 
+    formData.osChoice !== '';
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -41,7 +58,8 @@ export default function Home() {
       if (!response.ok) {
         setResult({ error: data.error || 'Something went wrong. Please try again.' });
       } else {
-        setResult({ code: data.code, message: data.message });
+        setResult({ link: data.link, osChoice: data.osChoice, message: "Redirecting to app store..." });
+        window.location.href = data.link;
       }
     } catch (error) {
       setResult({ error: 'Network error. Please try again.' });
@@ -54,7 +72,7 @@ export default function Home() {
     if (!cardRef.current) return;
     try {
       const dataUrl = await htmlToImage.toPng(cardRef.current, {
-        backgroundColor: '#171717', // neutral-900
+        backgroundColor: '#ffffff', // white
         pixelRatio: 2,
       });
       const link = document.createElement('a');
@@ -72,7 +90,7 @@ export default function Home() {
     if (!cardRef.current) return;
     try {
       const dataUrl = await htmlToImage.toPng(cardRef.current, {
-        backgroundColor: '#171717',
+        backgroundColor: '#ffffff',
         pixelRatio: 2,
       });
       
@@ -96,11 +114,11 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-50 flex flex-col items-center justify-center p-4 sm:p-8 font-sans relative">
+    <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col items-center justify-center p-4 sm:p-8 font-sans relative">
       <div className="absolute top-4 right-4 sm:top-8 sm:right-8">
         <Link
           to="/admin"
-          className="flex items-center gap-2 text-sm font-medium text-neutral-400 hover:text-neutral-200 transition-colors bg-neutral-900 border border-neutral-800 rounded-full px-4 py-2 hover:bg-neutral-800"
+          className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors bg-white border border-gray-200 rounded-full px-4 py-2 hover:bg-gray-200"
         >
           <Lock className="w-4 h-4" />
           Admin Login
@@ -113,54 +131,34 @@ export default function Home() {
         transition={{ duration: 0.5 }}
         className="w-full max-w-md"
       >
-        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8 shadow-xl">
+        <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-xl">
           <div className="flex flex-col items-center mb-8">
-            <div className="w-12 h-12 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mb-4">
-              <Gift className="w-6 h-6" />
-            </div>
-            <h1 className="text-2xl font-semibold tracking-tight text-center">Get Your Referral Code</h1>
-            <p className="text-neutral-400 text-sm mt-2 text-center">
-              Register below to claim your exclusive KSB code. Limited to 26 spots!
+            <h1 className="text-2xl font-semibold tracking-tight text-center">GET YOUR FREE BEYOND THE HUSTLE E-BOOK</h1>
+            <p className="text-gray-500 text-sm mt-2 text-center">
+              GCB is sponsoring 1,000 students to get the Beyond The Hustle Book FREE. Download the app now get your your access
             </p>
           </div>
 
-          {!result?.code ? (
+          {!result?.link ? (
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label htmlFor="firstName" className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
-                    First Name
-                  </label>
-                  <input
-                    type="text"
-                    id="firstName"
-                    name="firstName"
-                    required
-                    value={formData.firstName}
-                    onChange={handleChange}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
-                    placeholder="Jane"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label htmlFor="lastName" className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
-                    Last Name
-                  </label>
-                  <input
-                    type="text"
-                    id="lastName"
-                    name="lastName"
-                    required
-                    value={formData.lastName}
-                    onChange={handleChange}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
-                    placeholder="Doe"
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <label htmlFor="fullName" className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  id="fullName"
+                  name="fullName"
+                  required
+                  value={formData.fullName}
+                  onChange={handleChange}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-colors"
+                  placeholder="Jane Doe"
+                />
               </div>
 
               <div className="space-y-1.5">
-                <label htmlFor="email" className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
+                <label htmlFor="email" className="text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Email Address
                 </label>
                 <input
@@ -170,39 +168,167 @@ export default function Home() {
                   required
                   value={formData.email}
                   onChange={handleChange}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-colors"
                   placeholder="jane@example.com"
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label htmlFor="phone" className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
-                  Phone Number
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
-                    <span className="text-neutral-400 text-sm font-medium">+233</span>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="phone" className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Phone Number
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+                      <span className="text-gray-500 text-sm font-medium">+233</span>
+                    </div>
+                    <input
+                      type="tel"
+                      id="phone"
+                      name="phone"
+                      required
+                      pattern="[0-9]{9}"
+                      title="Please enter a valid 9-digit Ghana phone number without the leading 0 (e.g., 241234567)"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-14 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-colors"
+                      placeholder="24 123 4567"
+                    />
                   </div>
-                  <input
-                    type="tel"
-                    id="phone"
-                    name="phone"
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="gender" className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Gender
+                  </label>
+                  <select
+                    id="gender"
+                    name="gender"
                     required
-                    pattern="[0-9]{9}"
-                    title="Please enter a valid 9-digit Ghana phone number without the leading 0 (e.g., 241234567)"
-                    value={formData.phone}
+                    value={formData.gender}
+                    onChange={(e: any) => handleChange(e)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-colors appearance-none"
+                  >
+                    <option value="" disabled>Select gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="institution" className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Name of University/Institution
+                </label>
+                <input
+                  type="text"
+                  id="institution"
+                  name="institution"
+                  required
+                  value={formData.institution}
+                  onChange={handleChange}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-colors"
+                  placeholder="e.g. University of Ghana"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="courseOfStudy" className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Course of Study
+                  </label>
+                  <input
+                    type="text"
+                    id="courseOfStudy"
+                    name="courseOfStudy"
+                    required
+                    value={formData.courseOfStudy}
                     onChange={handleChange}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-14 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-colors"
-                    placeholder="24 123 4567"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-colors"
+                    placeholder="e.g. Computer Science"
                   />
                 </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="yearOfStudy" className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Year of Study
+                  </label>
+                  <select
+                    id="yearOfStudy"
+                    name="yearOfStudy"
+                    required
+                    value={formData.yearOfStudy}
+                    onChange={(e: any) => handleChange(e)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-colors appearance-none"
+                  >
+                    <option value="" disabled>Select level</option>
+                    <option value="Level 100">Level 100</option>
+                    <option value="Level 200">Level 200</option>
+                    <option value="Level 300">Level 300</option>
+                    <option value="Level 400">Level 400</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="hasGcbAccount" className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Do you have a GCB account?
+                </label>
+                <select
+                  id="hasGcbAccount"
+                  name="hasGcbAccount"
+                  required
+                  value={formData.hasGcbAccount}
+                  onChange={(e: any) => handleChange(e)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-colors appearance-none"
+                >
+                  <option value="" disabled>Select option</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </select>
+              </div>
+
+              {formData.hasGcbAccount === 'Yes' && (
+                <div className="space-y-1.5">
+                  <label htmlFor="gcbAccountNumber" className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Enter your GCB account number
+                  </label>
+                  <input
+                    type="text"
+                    id="gcbAccountNumber"
+                    name="gcbAccountNumber"
+                    required
+                    value={formData.gcbAccountNumber}
+                    onChange={handleChange}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-colors"
+                    placeholder="Account Number"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label htmlFor="osChoice" className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Device Platform
+                </label>
+                <select
+                  id="osChoice"
+                  name="osChoice"
+                  required
+                  value={formData.osChoice}
+                  onChange={(e: any) => handleChange(e)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-colors appearance-none"
+                >
+                  <option value="" disabled>Select platform</option>
+                  <option value="iOS">iOS (Apple App Store)</option>
+                  <option value="Android">Android (Google Play Store)</option>
+                </select>
               </div>
 
               {result?.error && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
-                  className="bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl p-3 flex items-start gap-3 text-sm"
+                  className="bg-red-50 border border-red-200 text-red-600 rounded-xl p-3 flex items-start gap-3 text-sm"
                 >
                   <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                   <p>{result.error}</p>
@@ -211,13 +337,13 @@ export default function Home() {
 
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-xl px-4 py-3 text-sm transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed mt-6"
+                disabled={loading || !isFormValid}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-xl px-4 py-3 text-sm transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed mt-6"
               >
                 {loading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
-                  'Claim My Code'
+                  'Download App'
                 )}
               </button>
             </form>
@@ -227,74 +353,42 @@ export default function Home() {
               animate={{ opacity: 1, scale: 1 }}
               className="flex flex-col items-center text-center space-y-6 py-4"
             >
-              <div ref={cardRef} className="flex flex-col items-center text-center space-y-6 w-full p-8 bg-neutral-900 rounded-2xl relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1.5 bg-emerald-500"></div>
+              <div className="flex flex-col items-center text-center space-y-6 w-full p-8 bg-white rounded-2xl relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1.5 bg-orange-500"></div>
                 
-                <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mt-2">
+                <div className="w-16 h-16 bg-orange-500/10 text-orange-500 rounded-full flex items-center justify-center mt-2">
                   <CheckCircle2 className="w-8 h-8" />
                 </div>
                 
                 <div className="space-y-1">
-                  <h2 className="text-2xl font-bold text-white tracking-wide">
-                    {formData.firstName} {formData.lastName}
+                  <h2 className="text-2xl font-bold text-gray-900 tracking-wide">
+                    {formData.fullName}
                   </h2>
-                  <p className="text-emerald-400 text-sm font-medium uppercase tracking-wider">Beyond The Hustle Ambassador</p>
+                  <p className="text-orange-500 text-sm font-medium uppercase tracking-wider">Registration Complete</p>
                 </div>
 
-                <div className="w-full h-px bg-neutral-800 my-2"></div>
+                <div className="w-full h-px bg-gray-200 my-2"></div>
 
                 <div className="space-y-2">
-                  <p className="text-neutral-400 text-sm">{result.message}</p>
-                  <p className="text-neutral-500 text-xs uppercase tracking-widest">Your exclusive code</p>
+                  <p className="text-gray-500 text-sm">{result.message}</p>
+                  <p className="text-gray-400 text-xs uppercase tracking-widest">If you are not redirected, click below</p>
                 </div>
 
-                <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-6 w-full shadow-inner">
-                  <div className="font-mono text-5xl font-bold text-emerald-400 tracking-widest">
-                    {result.code}
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-4 w-full">
-                <p className="text-indigo-400 text-sm font-medium">
-                  📸 Please take a screenshot of this screen or download it to save your code!
-                </p>
-              </div>
-
-              {downloadMessage && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl p-3 w-full text-center text-sm font-medium"
+                <a
+                  href={result.link}
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-xl px-4 py-3 text-sm transition-colors flex items-center justify-center gap-2 mt-4"
                 >
-                  {downloadMessage}
-                </motion.div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3 w-full">
-                <button
-                  onClick={handleDownloadPNG}
-                  className="bg-neutral-800 hover:bg-neutral-700 text-neutral-200 px-4 py-3 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                >
-                  <ImageIcon className="w-4 h-4" />
-                  Save as PNG
-                </button>
-                <button
-                  onClick={handleDownloadPDF}
-                  className="bg-neutral-800 hover:bg-neutral-700 text-neutral-200 px-4 py-3 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                >
-                  <FileText className="w-4 h-4" />
-                  Save as PDF
-                </button>
+                  <Download className="w-5 h-5" />
+                  Download for {result.osChoice}
+                </a>
               </div>
 
               <button
                 onClick={() => {
                   setResult(null);
-                  setFormData({ firstName: '', lastName: '', email: '', phone: '' });
-                  setDownloadMessage('');
+                  setFormData({ fullName: '', email: '', phone: '', gender: '', institution: '', courseOfStudy: '', yearOfStudy: '', hasGcbAccount: '', gcbAccountNumber: '', osChoice: '' });
                 }}
-                className="text-sm text-neutral-400 hover:text-neutral-200 transition-colors mt-4"
+                className="text-sm text-gray-500 hover:text-gray-700 transition-colors mt-4"
               >
                 Register another person
               </button>

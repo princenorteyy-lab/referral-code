@@ -6,11 +6,16 @@ import * as XLSX from 'xlsx';
 
 interface User {
   id: number;
-  firstName: string;
-  lastName: string;
+  fullName: string;
   email: string;
   phone: string;
-  code: string;
+  gender: string;
+  institution: string;
+  courseOfStudy: string;
+  yearOfStudy: string;
+  hasGcbAccount: string;
+  gcbAccountNumber: string;
+  osChoice: string;
 }
 
 export default function Admin() {
@@ -19,6 +24,8 @@ export default function Admin() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showConfirmReset, setShowConfirmReset] = useState(false);
+  const [resetMessage, setResetMessage] = useState('');
 
   useEffect(() => {
     if (token) {
@@ -82,11 +89,16 @@ export default function Admin() {
   const exportToExcel = () => {
     const worksheet = XLSX.utils.json_to_sheet(users.map(u => ({
       ID: u.id,
-      'First Name': u.firstName,
-      'Last Name': u.lastName,
+      'Full Name': u.fullName,
       Email: u.email,
       'Phone Number': `+233 ${u.phone}`,
-      'Referral Code': u.code
+      Gender: u.gender,
+      Institution: u.institution,
+      'Course of Study': u.courseOfStudy,
+      'Year of Study': u.yearOfStudy,
+      'Has GCB Account': u.hasGcbAccount,
+      'GCB Account Number': u.gcbAccountNumber || 'N/A',
+      'OS Choice': u.osChoice
     })));
     
     const workbook = XLSX.utils.book_new();
@@ -97,11 +109,8 @@ export default function Admin() {
   };
 
   const handleReset = async () => {
-    if (!window.confirm("Are you sure you want to delete ALL registered users? This cannot be undone.")) {
-      return;
-    }
-    
     setLoading(true);
+    setResetMessage('');
     try {
       const response = await fetch('/api/admin/reset', {
         method: 'POST',
@@ -110,25 +119,27 @@ export default function Admin() {
 
       if (response.ok) {
         setUsers([]);
-        alert("All data has been reset.");
+        setResetMessage("All data has been successfully reset.");
       } else {
-        alert("Failed to reset data.");
+        setResetMessage("Failed to reset data.");
       }
     } catch (err) {
       console.error('Failed to reset data', err);
-      alert("Network error. Please try again.");
+      setResetMessage("Network error. Please try again.");
     } finally {
       setLoading(false);
+      setShowConfirmReset(false);
+      setTimeout(() => setResetMessage(''), 5000);
     }
   };
 
   if (!token) {
     return (
-      <div className="min-h-screen bg-neutral-950 text-neutral-50 flex flex-col items-center justify-center p-4 font-sans relative">
+      <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col items-center justify-center p-4 font-sans relative">
         <div className="absolute top-4 left-4 sm:top-8 sm:left-8">
           <Link
             to="/"
-            className="flex items-center gap-2 text-sm font-medium text-neutral-400 hover:text-neutral-200 transition-colors bg-neutral-900 border border-neutral-800 rounded-full px-4 py-2 hover:bg-neutral-800"
+            className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors bg-white border border-gray-200 rounded-full px-4 py-2 hover:bg-gray-200"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Home
@@ -140,9 +151,9 @@ export default function Admin() {
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-sm"
         >
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-8 shadow-xl">
+          <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-xl">
             <div className="flex flex-col items-center mb-8">
-              <div className="w-12 h-12 bg-indigo-500/10 text-indigo-500 rounded-full flex items-center justify-center mb-4">
+              <div className="w-12 h-12 bg-blue-50 text-indigo-500 rounded-full flex items-center justify-center mb-4">
                 <Lock className="w-6 h-6" />
               </div>
               <h1 className="text-2xl font-semibold tracking-tight text-center">Admin Access</h1>
@@ -150,7 +161,7 @@ export default function Admin() {
 
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1.5">
-                <label htmlFor="password" className="text-xs font-medium text-neutral-400 uppercase tracking-wider">
+                <label htmlFor="password" className="text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Password
                 </label>
                 <input
@@ -159,13 +170,13 @@ export default function Admin() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-colors"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-colors"
                   placeholder="Enter admin password"
                 />
               </div>
 
               {error && (
-                <div className="bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl p-3 flex items-start gap-3 text-sm">
+                <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl p-3 flex items-start gap-3 text-sm">
                   <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
                   <p>{error}</p>
                 </div>
@@ -186,11 +197,11 @@ export default function Admin() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-50 p-4 sm:p-8 font-sans relative">
+    <div className="min-h-screen bg-gray-50 text-gray-900 p-4 sm:p-8 font-sans relative">
       <div className="absolute top-4 left-4 sm:top-8 sm:left-8">
         <Link
           to="/"
-          className="flex items-center gap-2 text-sm font-medium text-neutral-400 hover:text-neutral-200 transition-colors bg-neutral-900 border border-neutral-800 rounded-full px-4 py-2 hover:bg-neutral-800"
+          className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors bg-white border border-gray-200 rounded-full px-4 py-2 hover:bg-gray-200"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Home
@@ -198,22 +209,32 @@ export default function Admin() {
       </div>
 
       <div className="max-w-6xl mx-auto space-y-8 mt-16 sm:mt-12">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-neutral-900 border border-neutral-800 rounded-2xl p-6">
+        {resetMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`p-4 rounded-xl text-sm font-medium ${resetMessage.includes('success') ? 'bg-orange-500/10 text-orange-500 border border-orange-500/20' : 'bg-red-50 text-red-600 border border-red-200'}`}
+          >
+            {resetMessage}
+          </motion.div>
+        )}
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-gray-200 rounded-2xl p-6">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-indigo-500/10 text-indigo-500 rounded-full flex items-center justify-center">
+            <div className="w-12 h-12 bg-blue-50 text-indigo-500 rounded-full flex items-center justify-center">
               <Users className="w-6 h-6" />
             </div>
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">Referrals Database</h1>
-              <p className="text-neutral-400 text-sm">{users.length} registered users</p>
+              <p className="text-gray-500 text-sm">{users.length} registered users</p>
             </div>
           </div>
           
           <div className="flex items-center gap-3">
             <button
-              onClick={handleReset}
+              onClick={() => setShowConfirmReset(true)}
               disabled={loading || users.length === 0}
-              className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <AlertCircle className="w-4 h-4" />
               Reset Data
@@ -221,14 +242,14 @@ export default function Admin() {
             <button
               onClick={exportToExcel}
               disabled={users.length === 0}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Download className="w-4 h-4" />
               Export to Excel
             </button>
             <button
               onClick={handleLogout}
-              className="bg-neutral-800 hover:bg-neutral-700 text-neutral-200 px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-2"
+              className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-2"
             >
               <LogOut className="w-4 h-4" />
               Logout
@@ -236,43 +257,45 @@ export default function Admin() {
           </div>
         </div>
 
-        <div className="bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden">
+        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-neutral-950/50 text-neutral-400 border-b border-neutral-800">
+              <thead className="bg-gray-50/50 text-gray-500 border-b border-gray-200">
                 <tr>
                   <th className="px-6 py-4 font-medium">ID</th>
-                  <th className="px-6 py-4 font-medium">First Name</th>
-                  <th className="px-6 py-4 font-medium">Last Name</th>
+                  <th className="px-6 py-4 font-medium">Full Name</th>
                   <th className="px-6 py-4 font-medium">Email</th>
                   <th className="px-6 py-4 font-medium">Phone</th>
-                  <th className="px-6 py-4 font-medium">Code</th>
+                  <th className="px-6 py-4 font-medium">Institution</th>
+                  <th className="px-6 py-4 font-medium">GCB Account</th>
+                  <th className="px-6 py-4 font-medium">OS Choice</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-800">
+              <tbody className="divide-y divide-gray-200">
                 {loading && users.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-neutral-500">
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                       <Loader2 className="w-6 h-6 animate-spin mx-auto" />
                     </td>
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-neutral-500">
+                    <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                       No users registered yet.
                     </td>
                   </tr>
                 ) : (
                   users.map((user) => (
-                    <tr key={user.id} className="hover:bg-neutral-800/50 transition-colors">
-                      <td className="px-6 py-4 text-neutral-500">{user.id}</td>
-                      <td className="px-6 py-4 font-medium">{user.firstName}</td>
-                      <td className="px-6 py-4 font-medium">{user.lastName}</td>
-                      <td className="px-6 py-4 text-neutral-400">{user.email}</td>
-                      <td className="px-6 py-4 text-neutral-400">+233 {user.phone}</td>
+                    <tr key={user.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 text-gray-500">{user.id}</td>
+                      <td className="px-6 py-4 font-medium">{user.fullName}</td>
+                      <td className="px-6 py-4 text-gray-500">{user.email}</td>
+                      <td className="px-6 py-4 text-gray-500">+233 {user.phone}</td>
+                      <td className="px-6 py-4 text-gray-500">{user.institution}</td>
+                      <td className="px-6 py-4 text-gray-500">{user.hasGcbAccount === 'Yes' ? user.gcbAccountNumber : 'No'}</td>
                       <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                          {user.code}
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-orange-500/10 text-orange-500 border border-orange-500/20">
+                          {user.osChoice}
                         </span>
                       </td>
                     </tr>
@@ -283,6 +306,42 @@ export default function Admin() {
           </div>
         </div>
       </div>
+
+      {showConfirmReset && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white border border-gray-200 rounded-2xl p-6 max-w-md w-full shadow-2xl"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-50 text-red-500 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Reset Database?</h3>
+            </div>
+            <p className="text-gray-500 text-sm mb-6">
+              Are you sure you want to delete ALL registered users? This action cannot be undone and all referral codes will be released.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowConfirmReset(false)}
+                disabled={loading}
+                className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleReset}
+                disabled={loading}
+                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Yes, Delete All'}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

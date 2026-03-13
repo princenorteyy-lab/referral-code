@@ -26,11 +26,16 @@ if (!usePostgres) {
     sqliteDb.exec(`
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        firstName TEXT NOT NULL,
-        lastName TEXT NOT NULL,
+        fullName TEXT NOT NULL,
         email TEXT UNIQUE NOT NULL,
         phone TEXT NOT NULL,
-        code TEXT UNIQUE NOT NULL
+        gender TEXT NOT NULL,
+        institution TEXT NOT NULL,
+        courseOfStudy TEXT NOT NULL,
+        yearOfStudy TEXT NOT NULL,
+        hasGcbAccount TEXT NOT NULL,
+        gcbAccountNumber TEXT,
+        osChoice TEXT NOT NULL
       )
     `);
   }).catch(e => console.error("SQLite init error:", e));
@@ -45,11 +50,16 @@ if (!usePostgres) {
       await pgPool.query(`
         CREATE TABLE IF NOT EXISTS users (
           id SERIAL PRIMARY KEY,
-          firstName VARCHAR(255) NOT NULL,
-          lastName VARCHAR(255) NOT NULL,
+          fullName VARCHAR(255) NOT NULL,
           email VARCHAR(255) UNIQUE NOT NULL,
           phone VARCHAR(255) NOT NULL,
-          code VARCHAR(255) UNIQUE NOT NULL
+          gender VARCHAR(50) NOT NULL,
+          institution VARCHAR(255) NOT NULL,
+          courseOfStudy VARCHAR(255) NOT NULL,
+          yearOfStudy VARCHAR(50) NOT NULL,
+          hasGcbAccount VARCHAR(10) NOT NULL,
+          gcbAccountNumber VARCHAR(255),
+          osChoice VARCHAR(50) NOT NULL
         )
       `);
     } catch (e) {
@@ -58,54 +68,39 @@ if (!usePostgres) {
   })();
 }
 
-// Generate available codes KSB00 to KSB25
-const ALL_CODES = Array.from({ length: 26 }, (_, i) => `KSB${i.toString().padStart(2, '0')}`);
-
 app.post("/api/register", async (req, res) => {
-  const { firstName, lastName, email, phone } = req.body;
+  const { fullName, email, phone, gender, institution, courseOfStudy, yearOfStudy, hasGcbAccount, gcbAccountNumber, osChoice } = req.body;
 
-  if (!firstName || !lastName || !email || !phone) {
-    return res.status(400).json({ error: "All fields are required" });
+  if (!fullName || !email || !phone || !gender || !institution || !courseOfStudy || !yearOfStudy || !hasGcbAccount || !osChoice) {
+    return res.status(400).json({ error: "All required fields must be filled" });
   }
+
+  const downloadLink = osChoice === 'iOS' 
+    ? 'https://apps.apple.com/us/app/beyondthehustleapp/id6757446450'
+    : 'https://play.google.com/store/apps/details?id=com.selasi_godfred.beyondTheHustleApp&pcampaignid=web_share';
 
   try {
     if (usePostgres) {
-      const { rows: existingUsers } = await pgPool.query('SELECT code FROM users WHERE email = $1 OR phone = $2', [email, phone]);
+      const { rows: existingUsers } = await pgPool.query('SELECT oschoice FROM users WHERE email = $1 OR phone = $2', [email, phone]);
       if (existingUsers.length > 0) {
-        return res.json({ code: existingUsers[0].code, message: "Welcome back! Here is your existing code." });
-      }
-
-      const { rows: assignedCodes } = await pgPool.query('SELECT code FROM users');
-      const assignedCodeSet = new Set(assignedCodes.map((c: any) => c.code));
-      const availableCode = ALL_CODES.find(code => !assignedCodeSet.has(code));
-
-      if (!availableCode) {
-        return res.status(400).json({ error: "Sorry, all referral codes have been claimed." });
+        return res.json({ link: downloadLink, osChoice: existingUsers[0].oschoice, message: "Welcome back! Here is your download link." });
       }
 
       await pgPool.query(
-        'INSERT INTO users (firstName, lastName, email, phone, code) VALUES ($1, $2, $3, $4, $5)',
-        [firstName, lastName, email, phone, availableCode]
+        'INSERT INTO users (fullName, email, phone, gender, institution, courseOfStudy, yearOfStudy, hasGcbAccount, gcbAccountNumber, osChoice) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
+        [fullName, email, phone, gender, institution, courseOfStudy, yearOfStudy, hasGcbAccount, gcbAccountNumber || null, osChoice]
       );
-      return res.json({ code: availableCode, message: "Registration successful!" });
+      return res.json({ link: downloadLink, osChoice, message: "Registration successful!" });
     } else {
-      const existingUser = sqliteDb.prepare("SELECT code FROM users WHERE email = ? OR phone = ?").get(email, phone) as { code: string } | undefined;
+      const existingUser = sqliteDb.prepare("SELECT osChoice FROM users WHERE email = ? OR phone = ?").get(email, phone) as { osChoice: string } | undefined;
       if (existingUser) {
-        return res.json({ code: existingUser.code, message: "Welcome back! Here is your existing code." });
+        return res.json({ link: downloadLink, osChoice: existingUser.osChoice, message: "Welcome back! Here is your download link." });
       }
 
-      const assignedCodes = sqliteDb.prepare("SELECT code FROM users").all() as { code: string }[];
-      const assignedCodeSet = new Set(assignedCodes.map(c => c.code));
-      const availableCode = ALL_CODES.find(code => !assignedCodeSet.has(code));
+      const stmt = sqliteDb.prepare("INSERT INTO users (fullName, email, phone, gender, institution, courseOfStudy, yearOfStudy, hasGcbAccount, gcbAccountNumber, osChoice) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+      stmt.run(fullName, email, phone, gender, institution, courseOfStudy, yearOfStudy, hasGcbAccount, gcbAccountNumber || null, osChoice);
 
-      if (!availableCode) {
-        return res.status(400).json({ error: "Sorry, all referral codes have been claimed." });
-      }
-
-      const stmt = sqliteDb.prepare("INSERT INTO users (firstName, lastName, email, phone, code) VALUES (?, ?, ?, ?, ?)");
-      stmt.run(firstName, lastName, email, phone, availableCode);
-
-      return res.json({ code: availableCode, message: "Registration successful!" });
+      return res.json({ link: downloadLink, osChoice, message: "Registration successful!" });
     }
   } catch (error: any) {
     if (usePostgres && error.code === '23505') { // Postgres unique violation
@@ -150,7 +145,7 @@ const authenticate = (req: express.Request, res: express.Response, next: express
 app.get("/api/admin/users", authenticate, async (req, res) => {
   try {
     if (usePostgres) {
-      const { rows: users } = await pgPool.query('SELECT id, firstname AS "firstName", lastname AS "lastName", email, phone, code FROM users ORDER BY id DESC');
+      const { rows: users } = await pgPool.query('SELECT id, fullName, email, phone, gender, institution, courseOfStudy, yearOfStudy, hasGcbAccount, gcbAccountNumber, osChoice FROM users ORDER BY id DESC');
       res.json(users);
     } else {
       const users = sqliteDb.prepare("SELECT * FROM users ORDER BY id DESC").all();
