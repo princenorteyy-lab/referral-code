@@ -75,12 +75,14 @@ if (!usePostgres) {
 
       // Add columns if they don't exist (for existing databases)
       try {
-        await pgPool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS hasGcbAccount VARCHAR(10) NOT NULL DEFAULT 'No'`);
-        await pgPool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS gcbAccountNumber VARCHAR(255)`);
-        await pgPool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS osChoice VARCHAR(50) NOT NULL DEFAULT 'Android'`);
-      } catch (alterError) {
-        console.error("Postgres alter table error (might be expected if columns exist):", alterError);
-      }
+        await pgPool.query(`ALTER TABLE users ADD COLUMN hasGcbAccount VARCHAR(10) NOT NULL DEFAULT 'No'`);
+      } catch (e) {}
+      try {
+        await pgPool.query(`ALTER TABLE users ADD COLUMN gcbAccountNumber VARCHAR(255)`);
+      } catch (e) {}
+      try {
+        await pgPool.query(`ALTER TABLE users ADD COLUMN osChoice VARCHAR(50) NOT NULL DEFAULT 'Android'`);
+      } catch (e) {}
     } catch (e) {
       console.error("Postgres init error:", e);
     }
@@ -100,9 +102,10 @@ app.post("/api/register", async (req, res) => {
 
   try {
     if (usePostgres) {
-      const { rows: existingUsers } = await pgPool.query('SELECT oschoice FROM users WHERE email = $1 OR phone = $2', [email, phone]);
+      const { rows: existingUsers } = await pgPool.query('SELECT * FROM users WHERE email = $1 OR phone = $2', [email, phone]);
       if (existingUsers.length > 0) {
-        return res.json({ link: downloadLink, osChoice: existingUsers[0].oschoice, message: "Welcome back! Here is your download link." });
+        const existingOsChoice = existingUsers[0].osChoice || existingUsers[0].oschoice || 'Android';
+        return res.json({ link: downloadLink, osChoice: existingOsChoice, message: "Welcome back! Here is your download link." });
       }
 
       await pgPool.query(
@@ -111,9 +114,13 @@ app.post("/api/register", async (req, res) => {
       );
       return res.json({ link: downloadLink, osChoice, message: "Registration successful!" });
     } else {
-      const existingUser = sqliteDb.prepare("SELECT osChoice FROM users WHERE email = ? OR phone = ?").get(email, phone) as { osChoice: string } | undefined;
+      if (!sqliteDb) {
+        return res.status(500).json({ error: "Database not initialized. If you are on Vercel, please ensure you have connected a Postgres database." });
+      }
+      const existingUser = sqliteDb.prepare("SELECT * FROM users WHERE email = ? OR phone = ?").get(email, phone) as any;
       if (existingUser) {
-        return res.json({ link: downloadLink, osChoice: existingUser.osChoice, message: "Welcome back! Here is your download link." });
+        const existingOsChoice = existingUser.osChoice || existingUser.oschoice || 'Android';
+        return res.json({ link: downloadLink, osChoice: existingOsChoice, message: "Welcome back! Here is your download link." });
       }
 
       const stmt = sqliteDb.prepare("INSERT INTO users (fullName, email, phone, gender, institution, courseOfStudy, yearOfStudy, hasGcbAccount, gcbAccountNumber, osChoice) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
@@ -128,7 +135,7 @@ app.post("/api/register", async (req, res) => {
        return res.status(400).json({ error: "This email is already registered." });
     }
     console.error("Database error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: "Internal server error: " + (error.message || String(error)) });
   }
 });
 
