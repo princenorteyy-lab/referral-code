@@ -19,77 +19,75 @@ const usePostgres = !!postgresUrl;
 let sqliteDb: any;
 let pgPool: any;
 
-if (!usePostgres) {
-  // Use dynamic import for better-sqlite3 so it doesn't crash Vercel if the binary is missing
-  import("better-sqlite3").then(({ default: Database }) => {
-    sqliteDb = new Database("referrals.db");
-    sqliteDb.exec(`
-      CREATE TABLE IF NOT EXISTS registrations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        fullName TEXT NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        phone TEXT NOT NULL,
-        gender TEXT NOT NULL,
-        institution TEXT NOT NULL,
-        courseOfStudy TEXT NOT NULL,
-        yearOfStudy TEXT NOT NULL,
-        hasGcbAccount TEXT NOT NULL DEFAULT 'No',
-        gcbAccountNumber TEXT,
-        osChoice TEXT NOT NULL DEFAULT 'Android'
-      )
-    `);
+let dbInitPromise: Promise<void> | null = null;
 
-    try {
-      sqliteDb.exec(`ALTER TABLE registrations ADD COLUMN hasGcbAccount TEXT NOT NULL DEFAULT 'No'`);
-    } catch (e) {}
-    try {
-      sqliteDb.exec(`ALTER TABLE registrations ADD COLUMN gcbAccountNumber TEXT`);
-    } catch (e) {}
-    try {
-      sqliteDb.exec(`ALTER TABLE registrations ADD COLUMN osChoice TEXT NOT NULL DEFAULT 'Android'`);
-    } catch (e) {}
-  }).catch(e => console.error("SQLite init error:", e));
-} else {
-  pgPool = new Pool({
-    connectionString: postgresUrl,
-    ssl: { rejectUnauthorized: false }
-  });
-  
-  (async () => {
-    try {
-      await pgPool.query(`
+function initDb(): Promise<void> {
+  if (dbInitPromise) return dbInitPromise;
+
+  if (!usePostgres) {
+    dbInitPromise = import("better-sqlite3").then(({ default: Database }) => {
+      sqliteDb = new Database("referrals.db");
+      sqliteDb.exec(`
         CREATE TABLE IF NOT EXISTS registrations (
-          id SERIAL PRIMARY KEY,
-          fullName VARCHAR(255) NOT NULL,
-          email VARCHAR(255) UNIQUE NOT NULL,
-          phone VARCHAR(255) NOT NULL,
-          gender VARCHAR(50) NOT NULL,
-          institution VARCHAR(255) NOT NULL,
-          courseOfStudy VARCHAR(255) NOT NULL,
-          yearOfStudy VARCHAR(50) NOT NULL,
-          hasGcbAccount VARCHAR(10) NOT NULL DEFAULT 'No',
-          gcbAccountNumber VARCHAR(255),
-          osChoice VARCHAR(50) NOT NULL DEFAULT 'Android'
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          fullName TEXT NOT NULL,
+          email TEXT UNIQUE NOT NULL,
+          phone TEXT NOT NULL,
+          gender TEXT NOT NULL,
+          institution TEXT NOT NULL,
+          courseOfStudy TEXT NOT NULL,
+          yearOfStudy TEXT NOT NULL,
+          hasGcbAccount TEXT NOT NULL DEFAULT 'No',
+          gcbAccountNumber TEXT,
+          osChoice TEXT NOT NULL DEFAULT 'Android'
         )
       `);
 
-      // Add columns if they don't exist (for existing databases)
+      try { sqliteDb.exec(`ALTER TABLE registrations ADD COLUMN hasGcbAccount TEXT NOT NULL DEFAULT 'No'`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE registrations ADD COLUMN gcbAccountNumber TEXT`); } catch (e) {}
+      try { sqliteDb.exec(`ALTER TABLE registrations ADD COLUMN osChoice TEXT NOT NULL DEFAULT 'Android'`); } catch (e) {}
+    }).catch(e => console.error("SQLite init error:", e));
+  } else {
+    pgPool = new Pool({
+      connectionString: postgresUrl,
+      ssl: { rejectUnauthorized: false }
+    });
+    
+    dbInitPromise = (async () => {
       try {
-        await pgPool.query(`ALTER TABLE registrations ADD COLUMN hasGcbAccount VARCHAR(10) NOT NULL DEFAULT 'No'`);
-      } catch (e) {}
-      try {
-        await pgPool.query(`ALTER TABLE registrations ADD COLUMN gcbAccountNumber VARCHAR(255)`);
-      } catch (e) {}
-      try {
-        await pgPool.query(`ALTER TABLE registrations ADD COLUMN osChoice VARCHAR(50) NOT NULL DEFAULT 'Android'`);
-      } catch (e) {}
-    } catch (e) {
-      console.error("Postgres init error:", e);
-    }
-  })();
+        await pgPool.query(`
+          CREATE TABLE IF NOT EXISTS registrations (
+            id SERIAL PRIMARY KEY,
+            fullName VARCHAR(255) NOT NULL,
+            email VARCHAR(255) UNIQUE NOT NULL,
+            phone VARCHAR(255) NOT NULL,
+            gender VARCHAR(50) NOT NULL,
+            institution VARCHAR(255) NOT NULL,
+            courseOfStudy VARCHAR(255) NOT NULL,
+            yearOfStudy VARCHAR(50) NOT NULL,
+            hasGcbAccount VARCHAR(10) NOT NULL DEFAULT 'No',
+            gcbAccountNumber VARCHAR(255),
+            osChoice VARCHAR(50) NOT NULL DEFAULT 'Android'
+          )
+        `);
+
+        // Add columns if they don't exist (for existing databases)
+        try { await pgPool.query(`ALTER TABLE registrations ADD COLUMN hasGcbAccount VARCHAR(10) NOT NULL DEFAULT 'No'`); } catch (e) {}
+        try { await pgPool.query(`ALTER TABLE registrations ADD COLUMN gcbAccountNumber VARCHAR(255)`); } catch (e) {}
+        try { await pgPool.query(`ALTER TABLE registrations ADD COLUMN osChoice VARCHAR(50) NOT NULL DEFAULT 'Android'`); } catch (e) {}
+      } catch (e) {
+        console.error("Postgres init error:", e);
+      }
+    })();
+  }
+  return dbInitPromise;
 }
 
+// Initialize immediately, but we can also await it in routes
+initDb();
+
 app.post("/api/register", async (req, res) => {
+  await initDb();
   const { fullName, email, phone, gender, institution, courseOfStudy, yearOfStudy, hasGcbAccount, gcbAccountNumber, osChoice } = req.body;
 
   if (!fullName || !email || !phone || !gender || !institution || !courseOfStudy || !yearOfStudy || !hasGcbAccount || !osChoice) {
@@ -169,6 +167,7 @@ const authenticate = (req: express.Request, res: express.Response, next: express
 
 // Protected Admin Route to get all users
 app.get("/api/admin/users", authenticate, async (req, res) => {
+  await initDb();
   try {
     if (usePostgres) {
       const { rows: users } = await pgPool.query('SELECT id, fullName, email, phone, gender, institution, courseOfStudy, yearOfStudy, hasGcbAccount, gcbAccountNumber, osChoice FROM registrations ORDER BY id DESC');
@@ -185,6 +184,7 @@ app.get("/api/admin/users", authenticate, async (req, res) => {
 
 // Protected Admin Route to reset data
 app.post("/api/admin/reset", authenticate, async (req, res) => {
+  await initDb();
   try {
     if (usePostgres) {
       await pgPool.query('TRUNCATE TABLE registrations RESTART IDENTITY');
