@@ -24,7 +24,7 @@ if (!usePostgres) {
   import("better-sqlite3").then(({ default: Database }) => {
     sqliteDb = new Database("referrals.db");
     sqliteDb.exec(`
-      CREATE TABLE IF NOT EXISTS users (
+      CREATE TABLE IF NOT EXISTS registrations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         fullName TEXT NOT NULL,
         email TEXT UNIQUE NOT NULL,
@@ -40,13 +40,13 @@ if (!usePostgres) {
     `);
 
     try {
-      sqliteDb.exec(`ALTER TABLE users ADD COLUMN hasGcbAccount TEXT NOT NULL DEFAULT 'No'`);
+      sqliteDb.exec(`ALTER TABLE registrations ADD COLUMN hasGcbAccount TEXT NOT NULL DEFAULT 'No'`);
     } catch (e) {}
     try {
-      sqliteDb.exec(`ALTER TABLE users ADD COLUMN gcbAccountNumber TEXT`);
+      sqliteDb.exec(`ALTER TABLE registrations ADD COLUMN gcbAccountNumber TEXT`);
     } catch (e) {}
     try {
-      sqliteDb.exec(`ALTER TABLE users ADD COLUMN osChoice TEXT NOT NULL DEFAULT 'Android'`);
+      sqliteDb.exec(`ALTER TABLE registrations ADD COLUMN osChoice TEXT NOT NULL DEFAULT 'Android'`);
     } catch (e) {}
   }).catch(e => console.error("SQLite init error:", e));
 } else {
@@ -58,7 +58,7 @@ if (!usePostgres) {
   (async () => {
     try {
       await pgPool.query(`
-        CREATE TABLE IF NOT EXISTS users (
+        CREATE TABLE IF NOT EXISTS registrations (
           id SERIAL PRIMARY KEY,
           fullName VARCHAR(255) NOT NULL,
           email VARCHAR(255) UNIQUE NOT NULL,
@@ -75,13 +75,13 @@ if (!usePostgres) {
 
       // Add columns if they don't exist (for existing databases)
       try {
-        await pgPool.query(`ALTER TABLE users ADD COLUMN hasGcbAccount VARCHAR(10) NOT NULL DEFAULT 'No'`);
+        await pgPool.query(`ALTER TABLE registrations ADD COLUMN hasGcbAccount VARCHAR(10) NOT NULL DEFAULT 'No'`);
       } catch (e) {}
       try {
-        await pgPool.query(`ALTER TABLE users ADD COLUMN gcbAccountNumber VARCHAR(255)`);
+        await pgPool.query(`ALTER TABLE registrations ADD COLUMN gcbAccountNumber VARCHAR(255)`);
       } catch (e) {}
       try {
-        await pgPool.query(`ALTER TABLE users ADD COLUMN osChoice VARCHAR(50) NOT NULL DEFAULT 'Android'`);
+        await pgPool.query(`ALTER TABLE registrations ADD COLUMN osChoice VARCHAR(50) NOT NULL DEFAULT 'Android'`);
       } catch (e) {}
     } catch (e) {
       console.error("Postgres init error:", e);
@@ -102,14 +102,14 @@ app.post("/api/register", async (req, res) => {
 
   try {
     if (usePostgres) {
-      const { rows: existingUsers } = await pgPool.query('SELECT * FROM users WHERE email = $1 OR phone = $2', [email, phone]);
+      const { rows: existingUsers } = await pgPool.query('SELECT * FROM registrations WHERE email = $1 OR phone = $2', [email, phone]);
       if (existingUsers.length > 0) {
         const existingOsChoice = existingUsers[0].osChoice || existingUsers[0].oschoice || 'Android';
         return res.json({ link: downloadLink, osChoice: existingOsChoice, message: "Welcome back! Here is your download link." });
       }
 
       await pgPool.query(
-        'INSERT INTO users (fullName, email, phone, gender, institution, courseOfStudy, yearOfStudy, hasGcbAccount, gcbAccountNumber, osChoice) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
+        'INSERT INTO registrations (fullName, email, phone, gender, institution, courseOfStudy, yearOfStudy, hasGcbAccount, gcbAccountNumber, osChoice) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
         [fullName, email, phone, gender, institution, courseOfStudy, yearOfStudy, hasGcbAccount, gcbAccountNumber || null, osChoice]
       );
       return res.json({ link: downloadLink, osChoice, message: "Registration successful!" });
@@ -117,13 +117,13 @@ app.post("/api/register", async (req, res) => {
       if (!sqliteDb) {
         return res.status(500).json({ error: "Database not initialized. If you are on Vercel, please ensure you have connected a Postgres database." });
       }
-      const existingUser = sqliteDb.prepare("SELECT * FROM users WHERE email = ? OR phone = ?").get(email, phone) as any;
+      const existingUser = sqliteDb.prepare("SELECT * FROM registrations WHERE email = ? OR phone = ?").get(email, phone) as any;
       if (existingUser) {
         const existingOsChoice = existingUser.osChoice || existingUser.oschoice || 'Android';
         return res.json({ link: downloadLink, osChoice: existingOsChoice, message: "Welcome back! Here is your download link." });
       }
 
-      const stmt = sqliteDb.prepare("INSERT INTO users (fullName, email, phone, gender, institution, courseOfStudy, yearOfStudy, hasGcbAccount, gcbAccountNumber, osChoice) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+      const stmt = sqliteDb.prepare("INSERT INTO registrations (fullName, email, phone, gender, institution, courseOfStudy, yearOfStudy, hasGcbAccount, gcbAccountNumber, osChoice) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
       stmt.run(fullName, email, phone, gender, institution, courseOfStudy, yearOfStudy, hasGcbAccount, gcbAccountNumber || null, osChoice);
 
       return res.json({ link: downloadLink, osChoice, message: "Registration successful!" });
@@ -171,10 +171,10 @@ const authenticate = (req: express.Request, res: express.Response, next: express
 app.get("/api/admin/users", authenticate, async (req, res) => {
   try {
     if (usePostgres) {
-      const { rows: users } = await pgPool.query('SELECT id, fullName, email, phone, gender, institution, courseOfStudy, yearOfStudy, hasGcbAccount, gcbAccountNumber, osChoice FROM users ORDER BY id DESC');
+      const { rows: users } = await pgPool.query('SELECT id, fullName, email, phone, gender, institution, courseOfStudy, yearOfStudy, hasGcbAccount, gcbAccountNumber, osChoice FROM registrations ORDER BY id DESC');
       res.json(users);
     } else {
-      const users = sqliteDb.prepare("SELECT * FROM users ORDER BY id DESC").all();
+      const users = sqliteDb.prepare("SELECT * FROM registrations ORDER BY id DESC").all();
       res.json(users);
     }
   } catch (error) {
@@ -187,11 +187,11 @@ app.get("/api/admin/users", authenticate, async (req, res) => {
 app.post("/api/admin/reset", authenticate, async (req, res) => {
   try {
     if (usePostgres) {
-      await pgPool.query('TRUNCATE TABLE users RESTART IDENTITY');
+      await pgPool.query('TRUNCATE TABLE registrations RESTART IDENTITY');
     } else {
-      sqliteDb.prepare("DELETE FROM users").run();
+      sqliteDb.prepare("DELETE FROM registrations").run();
       // Reset sqlite autoincrement
-      sqliteDb.prepare("DELETE FROM sqlite_sequence WHERE name='users'").run();
+      sqliteDb.prepare("DELETE FROM sqlite_sequence WHERE name='registrations'").run();
     }
     res.json({ message: "Data reset successfully" });
   } catch (error) {
