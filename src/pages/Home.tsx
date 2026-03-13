@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { motion } from 'motion/react';
+import React, { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Gift, CheckCircle2, AlertCircle, Loader2, Lock, ArrowLeft, Download, FileText, Image as ImageIcon } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as htmlToImage from 'html-to-image';
@@ -8,6 +8,7 @@ import { jsPDF } from 'jspdf';
 export default function Home() {
   const navigate = useNavigate();
   const cardRef = useRef<HTMLDivElement>(null);
+  const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -22,7 +23,16 @@ export default function Home() {
   });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ link?: string; osChoice?: string; message?: string; error?: string } | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [downloadMessage, setDownloadMessage] = useState('');
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const isFormValid = formData.fullName.trim() !== '' && 
     formData.email.trim() !== '' && 
@@ -63,8 +73,11 @@ export default function Home() {
       if (!response.ok) {
         setResult({ error: data.error || 'Something went wrong. Please try again.' });
       } else {
-        setResult({ link: data.link, osChoice: data.osChoice, message: "Redirecting to app store..." });
-        window.location.href = data.link;
+        setResult({ link: data.link, osChoice: data.osChoice, message: data.message || "Registration successful!" });
+        setShowSuccessModal(true);
+        redirectTimeoutRef.current = setTimeout(() => {
+          window.location.href = data.link;
+        }, 3000);
       }
     } catch (error) {
       setResult({ error: 'Network error. Please try again.' });
@@ -145,7 +158,6 @@ export default function Home() {
           </div>
 
           <div className="p-8">
-            {!result?.link ? (
               <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <label htmlFor="fullName" className="text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -353,15 +365,27 @@ export default function Home() {
                 )}
               </button>
             </form>
-          ) : (
+          </div>
+        </div>
+      </motion.div>
+
+      <AnimatePresence>
+        {showSuccessModal && result?.link && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex flex-col items-center text-center space-y-6 py-4"
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden relative"
             >
-              <div className="flex flex-col items-center text-center space-y-6 w-full p-8 bg-white rounded-2xl relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-full h-1.5 bg-orange-500"></div>
-                
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-orange-500"></div>
+              
+              <div className="p-8 flex flex-col items-center text-center space-y-6">
                 <div className="w-16 h-16 bg-orange-500/10 text-orange-500 rounded-full flex items-center justify-center mt-2">
                   <CheckCircle2 className="w-8 h-8" />
                 </div>
@@ -377,7 +401,7 @@ export default function Home() {
 
                 <div className="space-y-2">
                   <p className="text-gray-500 text-sm">{result.message}</p>
-                  <p className="text-gray-400 text-xs uppercase tracking-widest">If you are not redirected, click below</p>
+                  <p className="text-gray-400 text-xs uppercase tracking-widest">Redirecting you shortly...</p>
                 </div>
 
                 <a
@@ -387,22 +411,25 @@ export default function Home() {
                   <Download className="w-5 h-5" />
                   Download for {result.osChoice}
                 </a>
-              </div>
 
-              <button
-                onClick={() => {
-                  setResult(null);
-                  setFormData({ fullName: '', email: '', phone: '', gender: '', institution: '', courseOfStudy: '', yearOfStudy: '', hasGcbAccount: '', gcbAccountNumber: '', osChoice: '' });
-                }}
-                className="text-sm text-gray-500 hover:text-gray-700 transition-colors mt-4"
-              >
-                Register another person
-              </button>
+                <button
+                  onClick={() => {
+                    if (redirectTimeoutRef.current) {
+                      clearTimeout(redirectTimeoutRef.current);
+                    }
+                    setShowSuccessModal(false);
+                    setResult(null);
+                    setFormData({ fullName: '', email: '', phone: '', gender: '', institution: '', courseOfStudy: '', yearOfStudy: '', hasGcbAccount: '', gcbAccountNumber: '', osChoice: '' });
+                  }}
+                  className="text-sm text-gray-500 hover:text-gray-700 transition-colors mt-2"
+                >
+                  Register another person
+                </button>
+              </div>
             </motion.div>
-          )}
-          </div>
-        </div>
-      </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
