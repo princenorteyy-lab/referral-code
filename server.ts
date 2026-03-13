@@ -46,7 +46,11 @@ function initDb(): Promise<void> {
       try { sqliteDb.exec(`ALTER TABLE registrations ADD COLUMN hasGcbAccount TEXT NOT NULL DEFAULT 'No'`); } catch (e) {}
       try { sqliteDb.exec(`ALTER TABLE registrations ADD COLUMN gcbAccountNumber TEXT`); } catch (e) {}
       try { sqliteDb.exec(`ALTER TABLE registrations ADD COLUMN osChoice TEXT NOT NULL DEFAULT 'Android'`); } catch (e) {}
-    }).catch(e => console.error("SQLite init error:", e));
+    }).catch(e => {
+      console.error("SQLite init error:", e);
+      dbInitPromise = null;
+      throw e;
+    });
   } else {
     pgPool = new Pool({
       connectionString: postgresUrl,
@@ -68,7 +72,7 @@ function initDb(): Promise<void> {
             hasGcbAccount VARCHAR(10) NOT NULL DEFAULT 'No',
             gcbAccountNumber VARCHAR(255),
             osChoice VARCHAR(50) NOT NULL DEFAULT 'Android'
-          )
+          );
         `);
 
         // Add columns if they don't exist (for existing databases)
@@ -77,6 +81,9 @@ function initDb(): Promise<void> {
         try { await pgPool.query(`ALTER TABLE registrations ADD COLUMN osChoice VARCHAR(50) NOT NULL DEFAULT 'Android'`); } catch (e) {}
       } catch (e) {
         console.error("Postgres init error:", e);
+        // Reset the promise so we can try again on the next request
+        dbInitPromise = null;
+        throw e;
       }
     })();
   }
@@ -86,8 +93,62 @@ function initDb(): Promise<void> {
 // Initialize immediately, but we can also await it in routes
 initDb();
 
+app.get("/api/debug-db", async (req, res) => {
+  try {
+    if (!usePostgres) {
+      return res.json({ status: "using sqlite", ok: true });
+    }
+    
+    // Test connection
+    const client = await pgPool.connect();
+    try {
+      const result = await client.query('SELECT NOW()');
+      
+      // Try to create table explicitly
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS registrations (
+          id SERIAL PRIMARY KEY,
+          fullName VARCHAR(255) NOT NULL,
+          email VARCHAR(255) UNIQUE NOT NULL,
+          phone VARCHAR(255) NOT NULL,
+          gender VARCHAR(50) NOT NULL,
+          institution VARCHAR(255) NOT NULL,
+          courseOfStudy VARCHAR(255) NOT NULL,
+          yearOfStudy VARCHAR(50) NOT NULL,
+          hasGcbAccount VARCHAR(10) NOT NULL DEFAULT 'No',
+          gcbAccountNumber VARCHAR(255),
+          osChoice VARCHAR(50) NOT NULL DEFAULT 'Android'
+        )
+      `);
+      
+      // Check if table exists
+      const tableCheck = await client.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'registrations'
+        );
+      `);
+      
+      return res.json({ 
+        status: "connected", 
+        time: result.rows[0],
+        tableExists: tableCheck.rows[0].exists
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error: any) {
+    return res.status(500).json({ 
+      error: "DB Debug Error", 
+      message: error.message,
+      stack: error.stack,
+      code: error.code
+    });
+  }
+});
+
 app.post("/api/register", async (req, res) => {
-  await initDb();
   const { fullName, email, phone, gender, institution, courseOfStudy, yearOfStudy, hasGcbAccount, gcbAccountNumber, osChoice } = req.body;
 
   if (!fullName || !email || !phone || !gender || !institution || !courseOfStudy || !yearOfStudy || !hasGcbAccount || !osChoice) {
@@ -99,6 +160,7 @@ app.post("/api/register", async (req, res) => {
     : 'https://play.google.com/store/apps/details?id=com.selasi_godfred.beyondTheHustleApp&pcampaignid=web_share';
 
   try {
+    await initDb();
     if (usePostgres) {
       const { rows: existingUsers } = await pgPool.query('SELECT * FROM registrations WHERE email = $1 OR phone = $2', [email, phone]);
       if (existingUsers.length > 0) {
